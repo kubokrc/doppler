@@ -191,9 +191,9 @@
 
       <p>
         Pri sínusovom signáli sa Dopplerov jav realizuje zmenou frekvencie oscilátora.
-        Pri bielom šume sa používa zmena rýchlosti prehrávania šumového bufferu.
-        Pri siréne sa používa vzorkovaný zvukový súbor a jednoduchý granulárny pitch-shift,
-        aby sa nemenilo tempo celého samplu.
+        Pri bielom šume sa nerealizuje zmenou jednej frekvencie, ale zmenou rýchlosti prehrávania
+        pásmovo obmedzeného šumového bufferu podľa Dopplerovho faktora.
+        Siréna je generovaná synteticky ako tón s periodicky meniacu sa frekvenciou.
       </p>
 
       <p>
@@ -252,7 +252,11 @@
 
     const SINE_GAIN = 0.06;
     const NOISE_GAIN = 0.08;
-    const SIREN_GAIN = 0.22;
+    const SIREN_GAIN = 0.04;
+
+    const SIREN_CENTER_FREQ = 850;
+    const SIREN_DEPTH = 350;
+    const SIREN_RATE = 0.45;
 
     const MAX_SPEED = 100;
 
@@ -260,15 +264,6 @@
     const MAX_DOPPLER = C / (C - MAX_SPEED);
 
     const NOISE_BUFFER_SEC = 8.0;
-
-    const SIREN_URL = './zvuky/siren.wav';
-
-    const SIREN_DOPPLER_AMOUNT = 0.55;
-    const SIREN_GRAIN_SIZE = 0.12;
-    const SIREN_GRAIN_HOP = 0.04;
-    const SIREN_GRAIN_FADE = 0.025;
-    const SIREN_SCHEDULE_AHEAD = 0.18;
-    const SIREN_SCHEDULER_INTERVAL_MS = 25;
 
     const SPECTRUM_MIN_DB = -100;
     const SPECTRUM_MAX_DB = 0;
@@ -279,14 +274,7 @@
     let analyserNode = null;
     let sourceNode = null;
     let noiseBuffer = null;
-    let sirenBuffer = null;
-    let sirenBufferPromise = null;
     let spectrumData = null;
-
-    let sirenTimer = null;
-    let sirenNextGrainTime = 0;
-    let sirenSamplePos = 0;
-    let sirenActiveSources = [];
 
     let tStart = 0;
     let emissions = [];
@@ -316,38 +304,6 @@
       spectrumData = new Uint8Array(analyserNode.frequencyBinCount);
 
       noiseBuffer = createNoiseBuffer(NOISE_BUFFER_SEC);
-    }
-
-    async function loadSirenBuffer() {
-      if (sirenBuffer) {
-        return sirenBuffer;
-      }
-
-      if (!audioCtx) {
-        initAudio();
-      }
-
-      if (!sirenBufferPromise) {
-        sirenBufferPromise = fetch(SIREN_URL)
-          .then(response => {
-            if (!response.ok) {
-              throw new Error(`Nepodarilo sa načítať súbor ${SIREN_URL}`);
-            }
-
-            return response.arrayBuffer();
-          })
-          .then(arrayBuffer => audioCtx.decodeAudioData(arrayBuffer))
-          .then(buffer => {
-            sirenBuffer = buffer;
-            return sirenBuffer;
-          })
-          .catch(error => {
-            sirenBufferPromise = null;
-            throw error;
-          });
-      }
-
-      return sirenBufferPromise;
     }
 
     function lowpassInPlace(data, cutoffHz, sampleRate, stages = 4) {
@@ -494,21 +450,27 @@
       );
     }
 
-    function getSirenPitchFactor() {
-      const dopplerFactor = getCurrentDopplerFactor();
-
-      return Math.max(
-        0.5,
-        Math.min(2.0, 1 + (dopplerFactor - 1) * SIREN_DOPPLER_AMOUNT)
-      );
-    }
-
     function getCurrentSineFrequency() {
       const baseFreq = getSelectedBaseFreq();
       const dopplerFactor = getCurrentDopplerFactor();
       const fDoppler = baseFreq * dopplerFactor;
 
       return Math.max(50, Math.min(5000, fDoppler));
+    }
+
+    function getCurrentSirenBaseFrequency() {
+      const tAudio = audioCtx ? audioCtx.currentTime : 0;
+
+      return SIREN_CENTER_FREQ +
+        SIREN_DEPTH * Math.sin(2 * Math.PI * SIREN_RATE * tAudio);
+    }
+
+    function getCurrentSirenFrequency() {
+      const baseFreq = getCurrentSirenBaseFrequency();
+      const dopplerFactor = getCurrentDopplerFactor();
+      const fDoppler = baseFreq * dopplerFactor;
+
+      return Math.max(80, Math.min(5000, fDoppler));
     }
 
     function updateFrequencyInfo() {
@@ -526,18 +488,13 @@
         const dopplerFactor = getCurrentDopplerFactor();
         el.textContent = `šum, D = ${dopplerFactor.toFixed(3)}`;
       } else if (isSirenSelected()) {
-        const dopplerFactor = getCurrentDopplerFactor();
-        const pitchFactor = getSirenPitchFactor();
-        el.textContent = `siréna, D = ${dopplerFactor.toFixed(3)}, pitch = ${pitchFactor.toFixed(3)}`;
+        if (params.running) {
+          const dopplerFactor = getCurrentDopplerFactor();
+          el.textContent = `siréna, f = ${getCurrentSirenFrequency().toFixed(1)} Hz, D = ${dopplerFactor.toFixed(3)}`;
+        } else {
+          el.textContent = `siréna, f ≈ ${SIREN_CENTER_FREQ} Hz`;
+        }
       }
-    }
-
-    function setFrequencyInfoText(text) {
-      const el = document.getElementById('freq-info');
-
-      if (!el) return;
-
-      el.textContent = text;
     }
 
     function resizeSpectrumCanvasToDisplaySize(canvas) {
@@ -706,8 +663,11 @@
         ctx.fillRect(x, y, barWidth, barHeight);
       }
 
-      if (isSineSelected()) {
-        const freq = params.running ? getCurrentSineFrequency() : getSelectedBaseFreq();
+      if (isSineSelected() || isSirenSelected()) {
+        const freq = isSineSelected()
+          ? (params.running ? getCurrentSineFrequency() : getSelectedBaseFreq())
+          : (params.running ? getCurrentSirenFrequency() : SIREN_CENTER_FREQ);
+
         const x = plot.plotX + Math.min(
           plot.plotW,
           Math.max(0, freq / SPECTRUM_MAX_VISIBLE_HZ * plot.plotW)
@@ -722,122 +682,8 @@
       }
     }
 
-    function stopGranularSiren() {
-      if (sirenTimer) {
-        clearInterval(sirenTimer);
-        sirenTimer = null;
-      }
-
-      for (const item of sirenActiveSources) {
-        try {
-          item.source.stop();
-        } catch (e) {}
-
-        try {
-          item.source.disconnect();
-        } catch (e) {}
-
-        try {
-          item.gain.disconnect();
-        } catch (e) {}
-      }
-
-      sirenActiveSources = [];
-    }
-
-    function scheduleOneSirenGrain(startTime, offset, pitchFactor) {
-      if (!sirenBuffer || !gainNode) return;
-
-      const src = audioCtx.createBufferSource();
-      const g = audioCtx.createGain();
-
-      src.buffer = sirenBuffer;
-      src.loop = true;
-      src.loopStart = 0;
-      src.loopEnd = sirenBuffer.duration;
-      src.playbackRate.setValueAtTime(pitchFactor, startTime);
-
-      g.gain.setValueAtTime(0, startTime);
-      g.gain.linearRampToValueAtTime(1, startTime + SIREN_GRAIN_FADE);
-      g.gain.setValueAtTime(1, startTime + SIREN_GRAIN_SIZE - SIREN_GRAIN_FADE);
-      g.gain.linearRampToValueAtTime(0, startTime + SIREN_GRAIN_SIZE);
-
-      src.connect(g);
-      g.connect(gainNode);
-
-      const safeOffset = ((offset % sirenBuffer.duration) + sirenBuffer.duration) % sirenBuffer.duration;
-
-      src.start(startTime, safeOffset);
-      src.stop(startTime + SIREN_GRAIN_SIZE + 0.01);
-
-      sirenActiveSources.push({
-        source: src,
-        gain: g,
-        endTime: startTime + SIREN_GRAIN_SIZE + 0.05
-      });
-
-      src.onended = () => {
-        try {
-          src.disconnect();
-        } catch (e) {}
-
-        try {
-          g.disconnect();
-        } catch (e) {}
-      };
-    }
-
-    function scheduleSirenGrains() {
-      if (!params.running || !isSirenSelected() || !sirenBuffer || !audioCtx) return;
-
-      const now = audioCtx.currentTime;
-
-      sirenActiveSources = sirenActiveSources.filter(item => item.endTime > now);
-
-      while (sirenNextGrainTime < now + SIREN_SCHEDULE_AHEAD) {
-        const pitchFactor = getSirenPitchFactor();
-
-        scheduleOneSirenGrain(
-          sirenNextGrainTime,
-          sirenSamplePos,
-          pitchFactor
-        );
-
-        sirenNextGrainTime += SIREN_GRAIN_HOP;
-        sirenSamplePos += SIREN_GRAIN_HOP;
-
-        if (sirenSamplePos >= sirenBuffer.duration) {
-          sirenSamplePos -= sirenBuffer.duration;
-        }
-      }
-    }
-
-    function startGranularSiren() {
-      stopGranularSiren();
-
-      if (!sirenBuffer) return;
-
-      sourceNode = {
-        type: 'granular-siren'
-      };
-
-      gainNode.gain.value = SIREN_GAIN;
-
-      sirenNextGrainTime = audioCtx.currentTime + 0.04;
-      sirenSamplePos = 0;
-
-      scheduleSirenGrains();
-
-      sirenTimer = setInterval(
-        scheduleSirenGrains,
-        SIREN_SCHEDULER_INTERVAL_MS
-      );
-    }
-
     function stopCurrentSource() {
-      stopGranularSiren();
-
-      if (sourceNode && sourceNode.stop) {
+      if (sourceNode) {
         try {
           sourceNode.stop();
         } catch (e) {}
@@ -845,9 +691,9 @@
         try {
           sourceNode.disconnect();
         } catch (e) {}
-      }
 
-      sourceNode = null;
+        sourceNode = null;
+      }
 
       if (gainNode) {
         gainNode.gain.value = 0;
@@ -880,7 +726,15 @@
         sourceNode = noise;
         gainNode.gain.value = NOISE_GAIN;
       } else if (isSirenSelected()) {
-        startGranularSiren();
+        const osc = audioCtx.createOscillator();
+
+        osc.type = 'sawtooth';
+        osc.frequency.value = getCurrentSirenFrequency();
+        osc.connect(gainNode);
+        osc.start();
+
+        sourceNode = osc;
+        gainNode.gain.value = SIREN_GAIN;
       }
     }
 
@@ -899,33 +753,17 @@
       updateFrequencyInfo();
     }
 
-    async function startSimulation() {
+    function startSimulation() {
       initAudio();
 
       if (audioCtx.state === 'suspended') {
-        await audioCtx.resume();
-      }
-
-      if (isSirenSelected()) {
-        setFrequencyInfoText('načítavam sirénu...');
-
-        try {
-          await loadSirenBuffer();
-        } catch (error) {
-          console.error(error);
-          params.running = false;
-          stopCurrentSource();
-          setFrequencyInfoText('chyba: siren.wav sa nepodarilo načítať');
-          alert('Nepodarilo sa načítať súbor ./zvuky/siren.wav. Skontroluj názov priečinka, názov súboru a veľké/malé písmená.');
-          return;
-        }
+        audioCtx.resume();
       }
 
       resetSimulation();
+      createCurrentSource();
 
       params.running = true;
-
-      createCurrentSource();
 
       updateFrequencyInfo();
       drawSpectrum();
@@ -966,8 +804,8 @@
 
       pane.addButton({
         title: 'Štart'
-      }).on('click', async () => {
-        await startSimulation();
+      }).on('click', () => {
+        startSimulation();
       });
 
       pane.addButton({
@@ -986,23 +824,8 @@
           'Šum': 'noise',
           'Siréna': 'siren'
         }
-      }).on('change', async () => {
+      }).on('change', () => {
         if (params.running && audioCtx) {
-          if (isSirenSelected()) {
-            setFrequencyInfoText('načítavam sirénu...');
-
-            try {
-              await loadSirenBuffer();
-            } catch (error) {
-              console.error(error);
-              params.running = false;
-              stopCurrentSource();
-              setFrequencyInfoText('chyba: siren.wav sa nepodarilo načítať');
-              alert('Nepodarilo sa načítať súbor ./zvuky/siren.wav. Skontroluj názov priečinka, názov súboru a veľké/malé písmená.');
-              return;
-            }
-          }
-
           createCurrentSource();
         }
 
@@ -1125,6 +948,14 @@
         if (isSineSelected() && sourceNode.frequency) {
           sourceNode.frequency.setTargetAtTime(
             getSelectedBaseFreq() * dopplerFactor,
+            nowAudio,
+            0.02
+          );
+        }
+
+        if (isSirenSelected() && sourceNode.frequency) {
+          sourceNode.frequency.setTargetAtTime(
+            getCurrentSirenFrequency(),
             nowAudio,
             0.02
           );
