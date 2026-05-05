@@ -193,7 +193,7 @@
         Pri sínusovom signáli sa Dopplerov jav realizuje zmenou frekvencie oscilátora.
         Pri bielom šume sa nerealizuje zmenou jednej frekvencie, ale zmenou rýchlosti prehrávania
         pásmovo obmedzeného šumového bufferu podľa Dopplerovho faktora.
-        Siréna je generovaná synteticky ako tón s periodicky meniacu sa frekvenciou.
+        Siréna je generovaná synteticky ako obdĺžnikový signál s periodicky meniacou sa frekvenciou.
       </p>
 
       <p>
@@ -252,11 +252,12 @@
 
     const SINE_GAIN = 0.06;
     const NOISE_GAIN = 0.08;
-    const SIREN_GAIN = 0.04;
+    const SIREN_GAIN = 0.035;
 
-    const SIREN_CENTER_FREQ = 750;
+    const SIREN_CENTER_FREQ = 850;
     const SIREN_DEPTH = 350;
-    const SIREN_RATE = 0.9;
+    const SIREN_RATE = 0.45;
+    const SIREN_REVERB_GAIN = 0.14;
 
     const MAX_SPEED = 100;
 
@@ -276,6 +277,9 @@
     let noiseBuffer = null;
     let spectrumData = null;
 
+    let sirenReverbNode = null;
+    let sirenReverbGain = null;
+
     let tStart = 0;
     let emissions = [];
     let lastEmit = -999;
@@ -285,13 +289,32 @@
 
     let lastUpdateTime = 0;
 
+    function createReverbImpulse(durationSec = 0.65, decay = 3.2) {
+      const sampleRate = audioCtx.sampleRate;
+      const length = Math.floor(sampleRate * durationSec);
+      const impulse = audioCtx.createBuffer(2, length, sampleRate);
+
+      for (let ch = 0; ch < impulse.numberOfChannels; ch++) {
+        const data = impulse.getChannelData(ch);
+
+        for (let i = 0; i < length; i++) {
+          const t = i / length;
+          const envelope = Math.pow(1 - t, decay);
+
+          data[i] = (Math.random() * 2 - 1) * envelope;
+        }
+      }
+
+      return impulse;
+    }
+
     function initAudio() {
       if (audioCtx) return;
 
       audioCtx = new AudioContext();
 
       analyserNode = audioCtx.createAnalyser();
-      analyserNode.fftSize = 4096;
+      analyserNode.fftSize = 8192;
       analyserNode.minDecibels = SPECTRUM_MIN_DB;
       analyserNode.maxDecibels = SPECTRUM_MAX_DB;
       analyserNode.smoothingTimeConstant = 0.82;
@@ -300,6 +323,15 @@
       gainNode = audioCtx.createGain();
       gainNode.gain.value = 0;
       gainNode.connect(analyserNode);
+
+      sirenReverbNode = audioCtx.createConvolver();
+      sirenReverbNode.buffer = createReverbImpulse(0.65, 3.2);
+
+      sirenReverbGain = audioCtx.createGain();
+      sirenReverbGain.gain.value = SIREN_REVERB_GAIN;
+
+      sirenReverbNode.connect(sirenReverbGain);
+      sirenReverbGain.connect(gainNode);
 
       spectrumData = new Uint8Array(analyserNode.frequencyBinCount);
 
@@ -603,11 +635,6 @@
       ctx.fillRect(0, 0, w, h);
 
       drawSpectrumGrid(ctx, w, h, dpr);
-
-      ctx.fillStyle = '#aaa';
-      ctx.font = `${14 * dpr}px Arial`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
     }
 
     function drawSpectrum() {
@@ -643,7 +670,7 @@
         Math.floor(SPECTRUM_MAX_VISIBLE_HZ / nyquist * spectrumData.length)
       );
 
-      const barCount = Math.min(180, maxBin);
+      const barCount = Math.min(320, maxBin);
       const barGap = 1 * dpr;
       const barWidth = Math.max(
         1 * dpr,
@@ -661,24 +688,6 @@
         const hue = 205 - value * 70;
         ctx.fillStyle = `hsl(${hue}, 90%, 60%)`;
         ctx.fillRect(x, y, barWidth, barHeight);
-      }
-
-      if (isSineSelected() || isSirenSelected()) {
-        const freq = isSineSelected()
-          ? (params.running ? getCurrentSineFrequency() : getSelectedBaseFreq())
-          : (params.running ? getCurrentSirenFrequency() : SIREN_CENTER_FREQ);
-
-        const x = plot.plotX + Math.min(
-          plot.plotW,
-          Math.max(0, freq / SPECTRUM_MAX_VISIBLE_HZ * plot.plotW)
-        );
-
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 2 * dpr;
-        ctx.beginPath();
-        ctx.moveTo(x, plot.plotY);
-        ctx.lineTo(x, plot.plotY + plot.plotH);
-        ctx.stroke();
       }
     }
 
@@ -708,6 +717,7 @@
 
         osc.type = 'sine';
         osc.frequency.value = getCurrentSineFrequency();
+
         osc.connect(gainNode);
         osc.start();
 
@@ -730,7 +740,10 @@
 
         osc.type = 'square';
         osc.frequency.value = getCurrentSirenFrequency();
+
         osc.connect(gainNode);
+        osc.connect(sirenReverbNode);
+
         osc.start();
 
         sourceNode = osc;
