@@ -1,0 +1,929 @@
+<!doctype html>
+<html lang="sk">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Doppler</title>
+
+  <script src="./kniznice/p5.min.js"></script>
+  <script src="./kniznice/tweakpane.min.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+      color: white;
+      font-family: Arial, sans-serif;
+    }
+
+    .content {
+      width: min(96vw, 1700px);
+      margin: 16px auto 24px auto;
+    }
+
+    .title {
+      margin: 0 0 10px 0;
+      font-size: 26px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    .intro,
+    .bottom-text {
+      width: 100%;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .intro {
+      margin-bottom: 14px;
+    }
+
+    .bottom-text {
+      margin-top: 14px;
+    }
+
+    .intro p,
+    .bottom-text p {
+      margin: 0 0 8px 0;
+    }
+
+    .formula {
+      margin: 6px 0 8px 0;
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    #app {
+      display: flex;
+      gap: 18px;
+      align-items: stretch;
+      width: 100%;
+      height: 72vh;
+      min-height: 620px;
+      background: #000;
+    }
+
+    #side-panel {
+      flex: 0 0 450px;
+      width: 450px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    #pane {
+      width: 100%;
+      height: fit-content;
+      max-height: 100%;
+      overflow-y: auto;
+      z-index: 10;
+    }
+
+    #freq-info {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 12px 14px;
+      border: 1px solid #333;
+      border-radius: 6px;
+      background: #111;
+      color: white;
+      font-size: 18px;
+      font-weight: 700;
+      line-height: 1.3;
+    }
+
+    #spectrum-panel {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 12px;
+      border: 1px solid #333;
+      border-radius: 6px;
+      background: #111;
+    }
+
+    #spectrum-title {
+      margin: 0 0 10px 0;
+      font-size: 16px;
+      font-weight: 700;
+      color: white;
+    }
+
+    #spectrum-canvas {
+      display: block;
+      width: 100%;
+      height: 280px;
+      background: #050505;
+      outline: 1px solid #333;
+    }
+
+    #sketch {
+      flex: 1 1 auto;
+      min-width: 0;
+      height: 100%;
+      background: #000;
+    }
+
+    #sketch canvas {
+      display: block;
+      outline: 1px solid #333;
+    }
+
+    @media (max-width: 1000px) {
+      #app {
+        min-height: 560px;
+      }
+
+      #side-panel {
+        flex: 0 0 390px;
+        width: 390px;
+      }
+
+      #spectrum-canvas {
+        height: 240px;
+      }
+    }
+
+    @media (max-width: 760px) {
+      #app {
+        flex-direction: column;
+        height: auto;
+        min-height: 0;
+      }
+
+      #side-panel {
+        flex: none;
+        width: 100%;
+      }
+
+      #sketch {
+        width: 100%;
+        height: 520px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="content">
+    <div class="title">Dopplerov jav</div>
+
+    <div class="intro">
+      <p>
+        Applet znázorňuje Dopplerov jav pre pohybujúci sa zdroj zvuku a nehybného poslucháča.
+        Na obrazovke je zobrazený zdroj, poslucháč, smer pohybu zdroja a šíriace sa vlnoplochy.
+        Zvuk, ktorý počujete, je zvuk vnímaný poslucháčom.
+      </p>
+
+      <p>V tejto simulácii sa používa vzťah:</p>
+
+      <div class="formula">f = f<sub>0</sub> · c / (c − v<sub>z</sub>)</div>
+
+      <p>
+        kde <strong>f<sub>0</sub></strong> je vysielaná frekvencia zdroja,
+        <strong>f</strong> je frekvencia vnímaná poslucháčom,
+        <strong>c</strong> je rýchlosť šírenia zvuku,
+        <strong>v<sub>z</sub></strong> je radiálna zložka rýchlosti zdroja vzhľadom na poslucháča
+        a <strong>v<sub>p</sub></strong> je rýchlosť poslucháča. V tomto applete je poslucháč nehybný,
+        teda <strong>v<sub>p</sub> = 0</strong>.
+      </p>
+
+      <p>
+        Pri sínusovom signáli sa Dopplerov jav realizuje zmenou frekvencie oscilátora.
+        Pri bielom šume sa nerealizuje zmenou jednej frekvencie, ale zmenou rýchlosti prehrávania
+        pásmovo obmedzeného šumového bufferu podľa Dopplerovho faktora.
+      </p>
+
+      <p>
+        Vlnoplochy sa zobrazujú hneď po otvorení stránky. Tlačidlom <strong>Štart</strong>
+        spustíte pohyb zdroja a zvuk.
+      </p>
+
+      <p>
+        <strong>Poznámka:</strong> Pri uhle 0° je zmena frekvencie veľmi prudká a môže pôsobiť neprirodzene,
+        ide však o fyzikálne správny jav. V skutočnosti je to ťažko realizovateľný prípad, pretože zdroj zvuku
+        by musel prechádzať priamo cez poslucháča.
+      </p>
+    </div>
+
+    <div id="app">
+      <div id="side-panel">
+        <div id="pane"></div>
+
+        <div id="freq-info">f = 200 Hz</div>
+
+        <div id="spectrum-panel">
+          <div id="spectrum-title">Spektrum signálu</div>
+          <canvas id="spectrum-canvas"></canvas>
+        </div>
+      </div>
+
+      <div id="sketch"></div>
+    </div>
+
+    <div class="bottom-text">
+      <p>
+        Simulácia používa upravené veličiny tak, aby bol Dopplerov jav dobre viditeľný aj počuteľný.
+        Rýchlosť šírenia vĺn je nastavená na <strong>140 m/s</strong>, zatiaľ čo v realite je rýchlosť zvuku
+        vo vzduchu približne <strong>340 m/s</strong>. Aj rýchlosti zdroja použité v simulácii sú pre bežné
+        situácie nerealisticky vysoké, aby bola zmena frekvencie výraznejšia. Graficky sa vlnoplochy emitujú
+        s frekvenciou <strong>2 Hz</strong>, preto je ich rozostup, teda vlnová dĺžka, v simulácii až
+        <strong>70 m</strong>, kým v realite by pri zvuku <strong>200 Hz</strong> bola približne
+        <strong>1,7 m</strong>. Zvuková časť preto pracuje s realistickejšími frekvenciami
+        <strong>200 Hz, 800 Hz, 1500 Hz a 2000 Hz</strong>, zatiaľ čo grafická časť je zámerne schematická.
+        Simulácia teda zachováva správny princíp javu, ale používa zjednodušenú mierku pre lepšiu názornosť.
+      </p>
+    </div>
+  </div>
+
+  <script>
+    const params = {
+      angleDeg: 5,
+      speed: 70,
+      running: false,
+      soundType: 'sine200'
+    };
+
+    const C = 140;
+    const F = 2;
+    const LIFE = 6;
+
+    const SINE_GAIN = 0.06;
+    const NOISE_GAIN = 0.08;
+
+    const MAX_SPEED = 100;
+
+    const MIN_DOPPLER = C / (C + MAX_SPEED);
+    const MAX_DOPPLER = C / (C - MAX_SPEED);
+
+    const NOISE_BUFFER_SEC = 8.0;
+
+    const SPECTRUM_MIN_DB = -100;
+    const SPECTRUM_MAX_DB = 0;
+    const SPECTRUM_MAX_VISIBLE_HZ = 4000;
+
+    let audioCtx = null;
+    let gainNode = null;
+    let analyserNode = null;
+    let sourceNode = null;
+    let noiseBuffer = null;
+    let spectrumData = null;
+
+    let tStart = 0;
+    let emissions = [];
+    let lastEmit = -999;
+
+    let sourceStartX, sourceStartY;
+    let sourceX, sourceY;
+
+    let lastUpdateTime = 0;
+
+    function initAudio() {
+      if (audioCtx) return;
+
+      audioCtx = new AudioContext();
+
+      analyserNode = audioCtx.createAnalyser();
+      analyserNode.fftSize = 4096;
+      analyserNode.minDecibels = SPECTRUM_MIN_DB;
+      analyserNode.maxDecibels = SPECTRUM_MAX_DB;
+      analyserNode.smoothingTimeConstant = 0.82;
+      analyserNode.connect(audioCtx.destination);
+
+      gainNode = audioCtx.createGain();
+      gainNode.gain.value = 0;
+      gainNode.connect(analyserNode);
+
+      spectrumData = new Uint8Array(analyserNode.frequencyBinCount);
+
+      noiseBuffer = createNoiseBuffer(NOISE_BUFFER_SEC);
+    }
+
+    function lowpassInPlace(data, cutoffHz, sampleRate, stages = 4) {
+      const dt = 1 / sampleRate;
+      const RC = 1 / (2 * Math.PI * cutoffHz);
+      const alpha = dt / (RC + dt);
+
+      for (let s = 0; s < stages; s++) {
+        let y = data[0];
+
+        for (let i = 1; i < data.length; i++) {
+          y = y + alpha * (data[i] - y);
+          data[i] = y;
+        }
+      }
+    }
+
+    function normalizeInPlace(data) {
+      let mean = 0;
+
+      for (let i = 0; i < data.length; i++) {
+        mean += data[i];
+      }
+
+      mean /= data.length;
+
+      let maxAbs = 0;
+
+      for (let i = 0; i < data.length; i++) {
+        data[i] -= mean;
+
+        const a = Math.abs(data[i]);
+
+        if (a > maxAbs) {
+          maxAbs = a;
+        }
+      }
+
+      if (maxAbs > 0) {
+        for (let i = 0; i < data.length; i++) {
+          data[i] /= maxAbs;
+        }
+      }
+    }
+
+    function createNoiseBuffer(durationSec) {
+      const sampleRate = audioCtx.sampleRate;
+      const bufferSize = Math.floor(sampleRate * durationSec);
+      const buffer = audioCtx.createBuffer(1, bufferSize, sampleRate);
+      const data = buffer.getChannelData(0);
+
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = Math.random() * 2 - 1;
+      }
+
+      const cutoffHz = 0.9 * (sampleRate * 0.5) / MAX_DOPPLER;
+
+      lowpassInPlace(data, cutoffHz, sampleRate, 4);
+      normalizeInPlace(data);
+
+      return buffer;
+    }
+
+    function isSineSelected() {
+      return params.soundType.startsWith('sine');
+    }
+
+    function getSelectedBaseFreq() {
+      if (params.soundType === 'sine800') return 800;
+      if (params.soundType === 'sine1500') return 1500;
+      if (params.soundType === 'sine2000') return 2000;
+
+      return 200;
+    }
+
+    function getDirection() {
+      const theta = params.angleDeg * Math.PI / 180;
+
+      return {
+        dirX: Math.cos(theta),
+        dirY: -Math.sin(theta)
+      };
+    }
+
+    function getVelocityComponents() {
+      const { dirX, dirY } = getDirection();
+      const VS = params.speed;
+
+      return {
+        dirX,
+        dirY,
+        vX: dirX * VS,
+        vY: dirY * VS
+      };
+    }
+
+    function getRadialData() {
+      const { vX, vY } = getVelocityComponents();
+
+      const dx = -sourceX;
+      const dy = -sourceY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < 0.0001) {
+        return {
+          vX,
+          vY,
+          dist,
+          vRad: 0
+        };
+      }
+
+      const nx = dx / dist;
+      const ny = dy / dist;
+
+      const vRad = vX * nx + vY * ny;
+
+      return {
+        vX,
+        vY,
+        dist,
+        vRad
+      };
+    }
+
+    function getCurrentDopplerFactor() {
+      const { vRad } = getRadialData();
+
+      if (Math.abs(C - vRad) < 1e-3) {
+        return MAX_DOPPLER;
+      }
+
+      return Math.max(
+        MIN_DOPPLER,
+        Math.min(MAX_DOPPLER, C / (C - vRad))
+      );
+    }
+
+    function getCurrentSineFrequency() {
+      const baseFreq = getSelectedBaseFreq();
+      const dopplerFactor = getCurrentDopplerFactor();
+      const fDoppler = baseFreq * dopplerFactor;
+
+      return Math.max(50, Math.min(5000, fDoppler));
+    }
+
+    function updateFrequencyInfo() {
+      const el = document.getElementById('freq-info');
+
+      if (!el) return;
+
+      if (isSineSelected()) {
+        if (params.running) {
+          el.textContent = `f = ${getCurrentSineFrequency().toFixed(1)} Hz`;
+        } else {
+          el.textContent = `f = ${getSelectedBaseFreq()} Hz`;
+        }
+      } else {
+        const dopplerFactor = getCurrentDopplerFactor();
+        el.textContent = `šum, D = ${dopplerFactor.toFixed(3)}`;
+      }
+    }
+
+    function resizeSpectrumCanvasToDisplaySize(canvas) {
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+
+      const displayWidth = Math.max(1, Math.floor(rect.width * dpr));
+      const displayHeight = Math.max(1, Math.floor(rect.height * dpr));
+
+      if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
+        canvas.width = displayWidth;
+        canvas.height = displayHeight;
+      }
+
+      return dpr;
+    }
+
+    function drawSpectrumGrid(ctx, w, h, dpr) {
+      const leftMargin = 58 * dpr;
+      const rightMargin = 12 * dpr;
+      const topMargin = 14 * dpr;
+      const bottomMargin = 30 * dpr;
+
+      const plotX = leftMargin;
+      const plotY = topMargin;
+      const plotW = w - leftMargin - rightMargin;
+      const plotH = h - topMargin - bottomMargin;
+
+      ctx.strokeStyle = '#333';
+      ctx.lineWidth = 1 * dpr;
+
+      ctx.beginPath();
+      ctx.moveTo(plotX, plotY);
+      ctx.lineTo(plotX, plotY + plotH);
+      ctx.lineTo(plotX + plotW, plotY + plotH);
+      ctx.stroke();
+
+      ctx.strokeStyle = '#222';
+      ctx.lineWidth = 1 * dpr;
+
+      for (let db = SPECTRUM_MAX_DB; db >= SPECTRUM_MIN_DB; db -= 20) {
+        const ratio = (db - SPECTRUM_MIN_DB) / (SPECTRUM_MAX_DB - SPECTRUM_MIN_DB);
+        const y = plotY + (1 - ratio) * plotH;
+
+        ctx.beginPath();
+        ctx.moveTo(plotX, y);
+        ctx.lineTo(plotX + plotW, y);
+        ctx.stroke();
+
+        ctx.fillStyle = '#ccc';
+        ctx.font = `${11 * dpr}px Arial`;
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+
+        if (db === SPECTRUM_MAX_DB) {
+          ctx.fillText(`${db} dB`, plotX - 7 * dpr, y);
+        } else {
+          ctx.fillText(`${db}`, plotX - 7 * dpr, y);
+        }
+      }
+
+      for (let hz = 0; hz <= SPECTRUM_MAX_VISIBLE_HZ; hz += 1000) {
+        const x = plotX + (hz / SPECTRUM_MAX_VISIBLE_HZ) * plotW;
+
+        ctx.beginPath();
+        ctx.moveTo(x, plotY);
+        ctx.lineTo(x, plotY + plotH);
+        ctx.stroke();
+
+        ctx.fillStyle = '#ddd';
+        ctx.font = `${11 * dpr}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+
+        if (hz === 0) {
+          ctx.fillText('0 Hz', x + 12 * dpr, plotY + plotH + 7 * dpr);
+        } else if (hz === SPECTRUM_MAX_VISIBLE_HZ) {
+          ctx.fillText('4 kHz', x - 16 * dpr, plotY + plotH + 7 * dpr);
+        } else {
+          ctx.fillText(`${hz / 1000} kHz`, x, plotY + plotH + 7 * dpr);
+        }
+      }
+
+      ctx.save();
+      ctx.translate(13 * dpr, plotY + plotH / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillStyle = '#ddd';
+      ctx.font = `${12 * dpr}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('úroveň [dB]', 0, 0);
+      ctx.restore();
+
+      return {
+        plotX,
+        plotY,
+        plotW,
+        plotH
+      };
+    }
+
+    function drawEmptySpectrum(ctx, w, h, dpr) {
+      ctx.clearRect(0, 0, w, h);
+
+      ctx.fillStyle = '#050505';
+      ctx.fillRect(0, 0, w, h);
+
+      const plot = drawSpectrumGrid(ctx, w, h, dpr);
+
+      ctx.fillStyle = '#aaa';
+      ctx.font = `${14 * dpr}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+    }
+
+    function drawSpectrum() {
+      const canvas = document.getElementById('spectrum-canvas');
+
+      if (!canvas) return;
+
+      const ctx = canvas.getContext('2d');
+      const dpr = resizeSpectrumCanvasToDisplaySize(canvas);
+
+      const w = canvas.width;
+      const h = canvas.height;
+
+      if (!analyserNode || !spectrumData || !params.running) {
+        drawEmptySpectrum(ctx, w, h, dpr);
+        return;
+      }
+
+      analyserNode.getByteFrequencyData(spectrumData);
+
+      ctx.clearRect(0, 0, w, h);
+
+      ctx.fillStyle = '#050505';
+      ctx.fillRect(0, 0, w, h);
+
+      const plot = drawSpectrumGrid(ctx, w, h, dpr);
+
+      const sampleRate = audioCtx.sampleRate;
+      const nyquist = sampleRate / 2;
+
+      const maxBin = Math.min(
+        spectrumData.length - 1,
+        Math.floor(SPECTRUM_MAX_VISIBLE_HZ / nyquist * spectrumData.length)
+      );
+
+      const barCount = Math.min(180, maxBin);
+      const barGap = 1 * dpr;
+      const barWidth = Math.max(
+        1 * dpr,
+        (plot.plotW - (barCount - 1) * barGap) / barCount
+      );
+
+      for (let i = 0; i < barCount; i++) {
+        const bin = Math.floor(i / barCount * maxBin);
+        const value = spectrumData[bin] / 255;
+
+        const barHeight = value * plot.plotH;
+        const x = plot.plotX + i * (barWidth + barGap);
+        const y = plot.plotY + plot.plotH - barHeight;
+
+        const hue = 205 - value * 70;
+        ctx.fillStyle = `hsl(${hue}, 90%, 60%)`;
+        ctx.fillRect(x, y, barWidth, barHeight);
+      }
+
+      if (isSineSelected()) {
+        const freq = params.running ? getCurrentSineFrequency() : getSelectedBaseFreq();
+        const x = plot.plotX + Math.min(
+          plot.plotW,
+          Math.max(0, freq / SPECTRUM_MAX_VISIBLE_HZ * plot.plotW)
+        );
+
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2 * dpr;
+        ctx.beginPath();
+        ctx.moveTo(x, plot.plotY);
+        ctx.lineTo(x, plot.plotY + plot.plotH);
+        ctx.stroke();
+      }
+    }
+
+    function stopCurrentSource() {
+      if (sourceNode) {
+        try {
+          sourceNode.stop();
+        } catch (e) {}
+
+        try {
+          sourceNode.disconnect();
+        } catch (e) {}
+
+        sourceNode = null;
+      }
+
+      if (gainNode) {
+        gainNode.gain.value = 0;
+      }
+    }
+
+    function createCurrentSource() {
+      stopCurrentSource();
+
+      if (isSineSelected()) {
+        const osc = audioCtx.createOscillator();
+
+        osc.type = 'sine';
+        osc.frequency.value = getCurrentSineFrequency();
+        osc.connect(gainNode);
+        osc.start();
+
+        sourceNode = osc;
+        gainNode.gain.value = SINE_GAIN;
+      } else {
+        const noise = audioCtx.createBufferSource();
+
+        noise.buffer = noiseBuffer;
+        noise.loop = true;
+        noise.playbackRate.value = getCurrentDopplerFactor();
+
+        noise.connect(gainNode);
+        noise.start();
+
+        sourceNode = noise;
+        gainNode.gain.value = NOISE_GAIN;
+      }
+    }
+
+    function resetSimulation() {
+      const now = millis() / 1000;
+
+      tStart = now;
+      lastUpdateTime = now;
+
+      sourceX = sourceStartX;
+      sourceY = sourceStartY;
+
+      emissions = [];
+      lastEmit = -999;
+
+      updateFrequencyInfo();
+    }
+
+    function startSimulation() {
+      initAudio();
+
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+
+      resetSimulation();
+      createCurrentSource();
+
+      params.running = true;
+
+      updateFrequencyInfo();
+      drawSpectrum();
+    }
+
+    function stopAndResetSimulation() {
+      params.running = false;
+
+      resetSimulation();
+      stopCurrentSource();
+
+      updateFrequencyInfo();
+      drawSpectrum();
+    }
+
+    function makeUI() {
+      const pane = new Tweakpane.Pane({
+        container: document.getElementById('pane')
+      });
+
+      pane.addInput(params, 'angleDeg', {
+        label: 'Uhol (°)',
+        min: -45,
+        max: 45,
+        step: 5
+      }).on('change', () => {
+        updateFrequencyInfo();
+      });
+
+      pane.addInput(params, 'speed', {
+        label: 'Rýchlosť (m/s)',
+        min: 50,
+        max: 100,
+        step: 5
+      }).on('change', () => {
+        updateFrequencyInfo();
+      });
+
+      pane.addButton({
+        title: 'Štart'
+      }).on('click', () => {
+        startSimulation();
+      });
+
+      pane.addButton({
+        title: 'Reset'
+      }).on('click', () => {
+        stopAndResetSimulation();
+      });
+
+      pane.addInput(params, 'soundType', {
+        label: 'Zvuk',
+        options: {
+          'Sínus 200 Hz': 'sine200',
+          'Sínus 800 Hz': 'sine800',
+          'Sínus 1500 Hz': 'sine1500',
+          'Sínus 2000 Hz': 'sine2000',
+          'Šum': 'noise'
+        }
+      }).on('change', () => {
+        if (params.running && audioCtx) {
+          createCurrentSource();
+        }
+
+        updateFrequencyInfo();
+      });
+    }
+
+    function initScene() {
+      sourceStartX = -width / 2 + 50;
+      sourceStartY = 0;
+
+      if (!params.running) {
+        sourceX = sourceStartX;
+        sourceY = sourceStartY;
+      }
+
+      updateFrequencyInfo();
+    }
+
+    function setup() {
+      const sketch = document.getElementById('sketch');
+      const cnv = createCanvas(sketch.clientWidth, sketch.clientHeight);
+
+      cnv.parent('sketch');
+
+      frameRate(60);
+
+      initScene();
+
+      const now = millis() / 1000;
+
+      tStart = now;
+      lastUpdateTime = now;
+
+      makeUI();
+      updateFrequencyInfo();
+      drawSpectrum();
+    }
+
+    function draw() {
+      background(10);
+      translate(width / 2, height / 2);
+
+      const now = millis() / 1000;
+      const t = now - tStart;
+      const dt = now - lastUpdateTime;
+
+      lastUpdateTime = now;
+
+      const T = 1 / F;
+
+      const { dirX, dirY, vX, vY } = getVelocityComponents();
+
+      if (params.running) {
+        sourceX += vX * dt;
+        sourceY += vY * dt;
+      } else {
+        sourceX = sourceStartX;
+        sourceY = sourceStartY;
+      }
+
+      if (t - lastEmit >= T) {
+        emissions.push({
+          t0: t,
+          x0: sourceX,
+          y0: sourceY
+        });
+
+        lastEmit = t;
+      }
+
+      emissions = emissions.filter(e => t - e.t0 <= LIFE);
+
+      const lineLen = map(params.speed, 50, 100, 120, 260);
+      const x2 = sourceX + dirX * lineLen;
+      const y2 = sourceY + dirY * lineLen;
+
+      stroke(255, 160, 80);
+      strokeWeight(2);
+      line(sourceX, sourceY, x2, y2);
+
+      const headSize = 12;
+      const a = Math.atan2(dirY, dirX);
+
+      line(
+        x2,
+        y2,
+        x2 - headSize * Math.cos(a - Math.PI / 6),
+        y2 - headSize * Math.sin(a - Math.PI / 6)
+      );
+
+      line(
+        x2,
+        y2,
+        x2 - headSize * Math.cos(a + Math.PI / 6),
+        y2 - headSize * Math.sin(a + Math.PI / 6)
+      );
+
+      noStroke();
+
+      fill(0, 255, 120);
+      circle(0, 0, 16);
+
+      fill(255, 210, 150);
+      circle(sourceX, sourceY, 14);
+
+      noFill();
+      stroke(120, 170, 255);
+      strokeWeight(2);
+
+      for (const e of emissions) {
+        const r = C * (t - e.t0);
+        circle(e.x0, e.y0, 2 * r);
+      }
+
+      if (params.running && audioCtx && audioCtx.state === 'running' && sourceNode) {
+        const nowAudio = audioCtx.currentTime;
+        const dopplerFactor = getCurrentDopplerFactor();
+
+        if (isSineSelected() && sourceNode.frequency) {
+          sourceNode.frequency.setTargetAtTime(
+            getSelectedBaseFreq() * dopplerFactor,
+            nowAudio,
+            0.02
+          );
+        }
+
+        if (!isSineSelected() && sourceNode.playbackRate) {
+          sourceNode.playbackRate.setTargetAtTime(
+            dopplerFactor,
+            nowAudio,
+            0.02
+          );
+        }
+      }
+
+      updateFrequencyInfo();
+      drawSpectrum();
+    }
+
+    function windowResized() {
+      const sketch = document.getElementById('sketch');
+
+      resizeCanvas(sketch.clientWidth, sketch.clientHeight);
+
+      initScene();
+      drawSpectrum();
+    }
+  </script>
+</body>
+</html>
