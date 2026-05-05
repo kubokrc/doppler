@@ -191,8 +191,8 @@
 
       <p>
         Pri sínusovom signáli sa Dopplerov jav realizuje zmenou frekvencie oscilátora.
-        Pri bielom šume sa nerealizuje zmenou jednej frekvencie, ale zmenou rýchlosti prehrávania
-        pásmovo obmedzeného šumového bufferu podľa Dopplerovho faktora.
+        Pri bielom šume a siréne sa nerealizuje zmenou jednej frekvencie, ale zmenou rýchlosti
+        prehrávania zvukového bufferu podľa Dopplerovho faktora.
       </p>
 
       <p>
@@ -251,6 +251,7 @@
 
     const SINE_GAIN = 0.06;
     const NOISE_GAIN = 0.08;
+    const SIREN_GAIN = 0.25;
 
     const MAX_SPEED = 100;
 
@@ -258,6 +259,8 @@
     const MAX_DOPPLER = C / (C - MAX_SPEED);
 
     const NOISE_BUFFER_SEC = 8.0;
+
+    const SIREN_URL = './zvuky/siren.wav';
 
     const SPECTRUM_MIN_DB = -100;
     const SPECTRUM_MAX_DB = 0;
@@ -268,6 +271,8 @@
     let analyserNode = null;
     let sourceNode = null;
     let noiseBuffer = null;
+    let sirenBuffer = null;
+    let sirenBufferPromise = null;
     let spectrumData = null;
 
     let tStart = 0;
@@ -298,6 +303,38 @@
       spectrumData = new Uint8Array(analyserNode.frequencyBinCount);
 
       noiseBuffer = createNoiseBuffer(NOISE_BUFFER_SEC);
+    }
+
+    async function loadSirenBuffer() {
+      if (sirenBuffer) {
+        return sirenBuffer;
+      }
+
+      if (!audioCtx) {
+        initAudio();
+      }
+
+      if (!sirenBufferPromise) {
+        sirenBufferPromise = fetch(SIREN_URL)
+          .then(response => {
+            if (!response.ok) {
+              throw new Error(`Nepodarilo sa načítať súbor ${SIREN_URL}`);
+            }
+
+            return response.arrayBuffer();
+          })
+          .then(arrayBuffer => audioCtx.decodeAudioData(arrayBuffer))
+          .then(buffer => {
+            sirenBuffer = buffer;
+            return sirenBuffer;
+          })
+          .catch(error => {
+            sirenBufferPromise = null;
+            throw error;
+          });
+      }
+
+      return sirenBufferPromise;
     }
 
     function lowpassInPlace(data, cutoffHz, sampleRate, stages = 4) {
@@ -363,6 +400,14 @@
 
     function isSineSelected() {
       return params.soundType.startsWith('sine');
+    }
+
+    function isNoiseSelected() {
+      return params.soundType === 'noise';
+    }
+
+    function isSirenSelected() {
+      return params.soundType === 'siren';
     }
 
     function getSelectedBaseFreq() {
@@ -455,10 +500,21 @@
         } else {
           el.textContent = `f = ${getSelectedBaseFreq()} Hz`;
         }
-      } else {
+      } else if (isNoiseSelected()) {
         const dopplerFactor = getCurrentDopplerFactor();
         el.textContent = `šum, D = ${dopplerFactor.toFixed(3)}`;
+      } else if (isSirenSelected()) {
+        const dopplerFactor = getCurrentDopplerFactor();
+        el.textContent = `siréna, D = ${dopplerFactor.toFixed(3)}`;
       }
+    }
+
+    function setFrequencyInfoText(text) {
+      const el = document.getElementById('freq-info');
+
+      if (!el) return;
+
+      el.textContent = text;
     }
 
     function resizeSpectrumCanvasToDisplaySize(canvas) {
@@ -566,7 +622,7 @@
       ctx.fillStyle = '#050505';
       ctx.fillRect(0, 0, w, h);
 
-      const plot = drawSpectrumGrid(ctx, w, h, dpr);
+      drawSpectrumGrid(ctx, w, h, dpr);
 
       ctx.fillStyle = '#aaa';
       ctx.font = `${14 * dpr}px Arial`;
@@ -674,7 +730,7 @@
 
         sourceNode = osc;
         gainNode.gain.value = SINE_GAIN;
-      } else {
+      } else if (isNoiseSelected()) {
         const noise = audioCtx.createBufferSource();
 
         noise.buffer = noiseBuffer;
@@ -686,6 +742,23 @@
 
         sourceNode = noise;
         gainNode.gain.value = NOISE_GAIN;
+      } else if (isSirenSelected()) {
+        if (!sirenBuffer) {
+          gainNode.gain.value = 0;
+          return;
+        }
+
+        const siren = audioCtx.createBufferSource();
+
+        siren.buffer = sirenBuffer;
+        siren.loop = true;
+        siren.playbackRate.value = getCurrentDopplerFactor();
+
+        siren.connect(gainNode);
+        siren.start();
+
+        sourceNode = siren;
+        gainNode.gain.value = SIREN_GAIN;
       }
     }
 
@@ -704,11 +777,26 @@
       updateFrequencyInfo();
     }
 
-    function startSimulation() {
+    async function startSimulation() {
       initAudio();
 
       if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
+        await audioCtx.resume();
+      }
+
+      if (isSirenSelected()) {
+        setFrequencyInfoText('načítavam sirénu...');
+
+        try {
+          await loadSirenBuffer();
+        } catch (error) {
+          console.error(error);
+          params.running = false;
+          stopCurrentSource();
+          setFrequencyInfoText('chyba: siren.wav sa nepodarilo načítať');
+          alert('Nepodarilo sa načítať súbor ./zvuky/siren.wav. Skontroluj názov priečinka, názov súboru a veľké/malé písmená.');
+          return;
+        }
       }
 
       resetSimulation();
@@ -755,8 +843,8 @@
 
       pane.addButton({
         title: 'Štart'
-      }).on('click', () => {
-        startSimulation();
+      }).on('click', async () => {
+        await startSimulation();
       });
 
       pane.addButton({
@@ -772,10 +860,26 @@
           'Sínus 800 Hz': 'sine800',
           'Sínus 1500 Hz': 'sine1500',
           'Sínus 2000 Hz': 'sine2000',
-          'Šum': 'noise'
+          'Šum': 'noise',
+          'Siréna': 'siren'
         }
-      }).on('change', () => {
+      }).on('change', async () => {
         if (params.running && audioCtx) {
+          if (isSirenSelected()) {
+            setFrequencyInfoText('načítavam sirénu...');
+
+            try {
+              await loadSirenBuffer();
+            } catch (error) {
+              console.error(error);
+              params.running = false;
+              stopCurrentSource();
+              setFrequencyInfoText('chyba: siren.wav sa nepodarilo načítať');
+              alert('Nepodarilo sa načítať súbor ./zvuky/siren.wav. Skontroluj názov priečinka, názov súboru a veľké/malé písmená.');
+              return;
+            }
+          }
+
           createCurrentSource();
         }
 
