@@ -191,8 +191,9 @@
 
       <p>
         Pri sínusovom signáli sa Dopplerov jav realizuje zmenou frekvencie oscilátora.
-        Pri bielom šume a siréne sa nerealizuje zmenou jednej frekvencie, ale zmenou rýchlosti
-        prehrávania zvukového bufferu podľa Dopplerovho faktora.
+        Pri bielom šume sa používa zmena rýchlosti prehrávania šumového bufferu.
+        Pri siréne sa používa vzorkovaný zvukový súbor a jednoduchý granulárny pitch-shift,
+        aby sa nemenilo tempo celého samplu.
       </p>
 
       <p>
@@ -251,7 +252,7 @@
 
     const SINE_GAIN = 0.06;
     const NOISE_GAIN = 0.08;
-    const SIREN_GAIN = 0.25;
+    const SIREN_GAIN = 0.22;
 
     const MAX_SPEED = 100;
 
@@ -261,6 +262,13 @@
     const NOISE_BUFFER_SEC = 8.0;
 
     const SIREN_URL = './zvuky/siren.wav';
+
+    const SIREN_DOPPLER_AMOUNT = 0.55;
+    const SIREN_GRAIN_SIZE = 0.12;
+    const SIREN_GRAIN_HOP = 0.04;
+    const SIREN_GRAIN_FADE = 0.025;
+    const SIREN_SCHEDULE_AHEAD = 0.18;
+    const SIREN_SCHEDULER_INTERVAL_MS = 25;
 
     const SPECTRUM_MIN_DB = -100;
     const SPECTRUM_MAX_DB = 0;
@@ -274,6 +282,11 @@
     let sirenBuffer = null;
     let sirenBufferPromise = null;
     let spectrumData = null;
+
+    let sirenTimer = null;
+    let sirenNextGrainTime = 0;
+    let sirenSamplePos = 0;
+    let sirenActiveSources = [];
 
     let tStart = 0;
     let emissions = [];
@@ -481,6 +494,15 @@
       );
     }
 
+    function getSirenPitchFactor() {
+      const dopplerFactor = getCurrentDopplerFactor();
+
+      return Math.max(
+        0.5,
+        Math.min(2.0, 1 + (dopplerFactor - 1) * SIREN_DOPPLER_AMOUNT)
+      );
+    }
+
     function getCurrentSineFrequency() {
       const baseFreq = getSelectedBaseFreq();
       const dopplerFactor = getCurrentDopplerFactor();
@@ -505,7 +527,8 @@
         el.textContent = `šum, D = ${dopplerFactor.toFixed(3)}`;
       } else if (isSirenSelected()) {
         const dopplerFactor = getCurrentDopplerFactor();
-        el.textContent = `siréna, D = ${dopplerFactor.toFixed(3)}`;
+        const pitchFactor = getSirenPitchFactor();
+        el.textContent = `siréna, D = ${dopplerFactor.toFixed(3)}, pitch = ${pitchFactor.toFixed(3)}`;
       }
     }
 
@@ -699,8 +722,122 @@
       }
     }
 
+    function stopGranularSiren() {
+      if (sirenTimer) {
+        clearInterval(sirenTimer);
+        sirenTimer = null;
+      }
+
+      for (const item of sirenActiveSources) {
+        try {
+          item.source.stop();
+        } catch (e) {}
+
+        try {
+          item.source.disconnect();
+        } catch (e) {}
+
+        try {
+          item.gain.disconnect();
+        } catch (e) {}
+      }
+
+      sirenActiveSources = [];
+    }
+
+    function scheduleOneSirenGrain(startTime, offset, pitchFactor) {
+      if (!sirenBuffer || !gainNode) return;
+
+      const src = audioCtx.createBufferSource();
+      const g = audioCtx.createGain();
+
+      src.buffer = sirenBuffer;
+      src.loop = true;
+      src.loopStart = 0;
+      src.loopEnd = sirenBuffer.duration;
+      src.playbackRate.setValueAtTime(pitchFactor, startTime);
+
+      g.gain.setValueAtTime(0, startTime);
+      g.gain.linearRampToValueAtTime(1, startTime + SIREN_GRAIN_FADE);
+      g.gain.setValueAtTime(1, startTime + SIREN_GRAIN_SIZE - SIREN_GRAIN_FADE);
+      g.gain.linearRampToValueAtTime(0, startTime + SIREN_GRAIN_SIZE);
+
+      src.connect(g);
+      g.connect(gainNode);
+
+      const safeOffset = ((offset % sirenBuffer.duration) + sirenBuffer.duration) % sirenBuffer.duration;
+
+      src.start(startTime, safeOffset);
+      src.stop(startTime + SIREN_GRAIN_SIZE + 0.01);
+
+      sirenActiveSources.push({
+        source: src,
+        gain: g,
+        endTime: startTime + SIREN_GRAIN_SIZE + 0.05
+      });
+
+      src.onended = () => {
+        try {
+          src.disconnect();
+        } catch (e) {}
+
+        try {
+          g.disconnect();
+        } catch (e) {}
+      };
+    }
+
+    function scheduleSirenGrains() {
+      if (!params.running || !isSirenSelected() || !sirenBuffer || !audioCtx) return;
+
+      const now = audioCtx.currentTime;
+
+      sirenActiveSources = sirenActiveSources.filter(item => item.endTime > now);
+
+      while (sirenNextGrainTime < now + SIREN_SCHEDULE_AHEAD) {
+        const pitchFactor = getSirenPitchFactor();
+
+        scheduleOneSirenGrain(
+          sirenNextGrainTime,
+          sirenSamplePos,
+          pitchFactor
+        );
+
+        sirenNextGrainTime += SIREN_GRAIN_HOP;
+        sirenSamplePos += SIREN_GRAIN_HOP;
+
+        if (sirenSamplePos >= sirenBuffer.duration) {
+          sirenSamplePos -= sirenBuffer.duration;
+        }
+      }
+    }
+
+    function startGranularSiren() {
+      stopGranularSiren();
+
+      if (!sirenBuffer) return;
+
+      sourceNode = {
+        type: 'granular-siren'
+      };
+
+      gainNode.gain.value = SIREN_GAIN;
+
+      sirenNextGrainTime = audioCtx.currentTime + 0.04;
+      sirenSamplePos = 0;
+
+      scheduleSirenGrains();
+
+      sirenTimer = setInterval(
+        scheduleSirenGrains,
+        SIREN_SCHEDULER_INTERVAL_MS
+      );
+    }
+
     function stopCurrentSource() {
-      if (sourceNode) {
+      stopGranularSiren();
+
+      if (sourceNode && sourceNode.stop) {
         try {
           sourceNode.stop();
         } catch (e) {}
@@ -708,9 +845,9 @@
         try {
           sourceNode.disconnect();
         } catch (e) {}
-
-        sourceNode = null;
       }
+
+      sourceNode = null;
 
       if (gainNode) {
         gainNode.gain.value = 0;
@@ -743,22 +880,7 @@
         sourceNode = noise;
         gainNode.gain.value = NOISE_GAIN;
       } else if (isSirenSelected()) {
-        if (!sirenBuffer) {
-          gainNode.gain.value = 0;
-          return;
-        }
-
-        const siren = audioCtx.createBufferSource();
-
-        siren.buffer = sirenBuffer;
-        siren.loop = true;
-        siren.playbackRate.value = getCurrentDopplerFactor();
-
-        siren.connect(gainNode);
-        siren.start();
-
-        sourceNode = siren;
-        gainNode.gain.value = SIREN_GAIN;
+        startGranularSiren();
       }
     }
 
@@ -800,9 +922,10 @@
       }
 
       resetSimulation();
-      createCurrentSource();
 
       params.running = true;
+
+      createCurrentSource();
 
       updateFrequencyInfo();
       drawSpectrum();
@@ -1007,7 +1130,7 @@
           );
         }
 
-        if (!isSineSelected() && sourceNode.playbackRate) {
+        if (isNoiseSelected() && sourceNode.playbackRate) {
           sourceNode.playbackRate.setTargetAtTime(
             dopplerFactor,
             nowAudio,
