@@ -256,8 +256,8 @@
 
     const SIREN_CENTER_FREQ = 850;
     const SIREN_DEPTH = 350;
-    const SIREN_RATE = 0.85;
-    const SIREN_REVERB_GAIN = 0.27;
+    const SIREN_RATE = 0.45;
+    const SIREN_REVERB_GAIN = 0.18;
 
     const MAX_SPEED = 100;
 
@@ -268,7 +268,7 @@
 
     const SPECTRUM_MIN_DB = -100;
     const SPECTRUM_MAX_DB = 0;
-    const SPECTRUM_MAX_VISIBLE_HZ = 4000;
+    const SPECTRUM_MAX_VISIBLE_HZ = 5000;
 
     let audioCtx = null;
     let gainNode = null;
@@ -333,7 +333,7 @@
       sirenReverbNode.connect(sirenReverbGain);
       sirenReverbGain.connect(gainNode);
 
-      spectrumData = new Uint8Array(analyserNode.frequencyBinCount);
+      spectrumData = new Float32Array(analyserNode.frequencyBinCount);
 
       noiseBuffer = createNoiseBuffer(NOISE_BUFFER_SEC);
     }
@@ -604,7 +604,7 @@
         if (hz === 0) {
           ctx.fillText('0 Hz', x + 12 * dpr, plotY + plotH + 7 * dpr);
         } else if (hz === SPECTRUM_MAX_VISIBLE_HZ) {
-          ctx.fillText('4 kHz', x - 16 * dpr, plotY + plotH + 7 * dpr);
+          ctx.fillText('5 kHz', x - 17 * dpr, plotY + plotH + 7 * dpr);
         } else {
           ctx.fillText(`${hz / 1000} kHz`, x, plotY + plotH + 7 * dpr);
         }
@@ -653,7 +653,7 @@
         return;
       }
 
-      analyserNode.getByteFrequencyData(spectrumData);
+      analyserNode.getFloatFrequencyData(spectrumData);
 
       ctx.clearRect(0, 0, w, h);
 
@@ -667,28 +667,40 @@
 
       const maxBin = Math.min(
         spectrumData.length - 1,
-        Math.floor(SPECTRUM_MAX_VISIBLE_HZ / nyquist * spectrumData.length)
+        Math.floor((SPECTRUM_MAX_VISIBLE_HZ / nyquist) * spectrumData.length)
       );
 
-      const barCount = Math.min(320, maxBin);
-      const barGap = 1 * dpr;
-      const barWidth = Math.max(
-        1 * dpr,
-        (plot.plotW - (barCount - 1) * barGap) / barCount
-      );
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(plot.plotX, plot.plotY, plot.plotW, plot.plotH);
+      ctx.clip();
 
-      for (let i = 0; i < barCount; i++) {
-        const bin = Math.floor(i / barCount * maxBin);
-        const value = spectrumData[bin] / 255;
+      ctx.noFill;
 
-        const barHeight = value * plot.plotH;
-        const x = plot.plotX + i * (barWidth + barGap);
-        const y = plot.plotY + plot.plotH - barHeight;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.4 * dpr;
+      ctx.beginPath();
 
-        const hue = 205 - value * 70;
-        ctx.fillStyle = `hsl(${hue}, 90%, 60%)`;
-        ctx.fillRect(x, y, barWidth, barHeight);
+      for (let i = 0; i <= maxBin; i++) {
+        const freq = (i / spectrumData.length) * nyquist;
+        const db = Math.max(
+          SPECTRUM_MIN_DB,
+          Math.min(SPECTRUM_MAX_DB, spectrumData[i])
+        );
+
+        const x = plot.plotX + (freq / SPECTRUM_MAX_VISIBLE_HZ) * plot.plotW;
+        const y = plot.plotY +
+          ((SPECTRUM_MAX_DB - db) / (SPECTRUM_MAX_DB - SPECTRUM_MIN_DB)) * plot.plotH;
+
+        if (i === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
       }
+
+      ctx.stroke();
+      ctx.restore();
     }
 
     function stopCurrentSource() {
