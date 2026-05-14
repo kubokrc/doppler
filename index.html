@@ -209,8 +209,9 @@
 
       <p>
         Zvuková časť simulácie používa reálnu rýchlosť zvuku <strong>343 m/s</strong> a realistickejší rozsah
-        rýchlosti zdroja <strong>10 až 40 m/s</strong>. Grafické vlnoplochy sú však zobrazené schematicky
-        pomalšie, aby bolo jasne vidieť ich zhustenie pred zdrojom a zriedenie za zdrojom.
+        rýchlosti zdroja <strong>10 až 40 m/s</strong>. Grafické vlnoplochy sú však zobrazené schematicky:
+        šíria sa približne <strong>3-krát pomalšie</strong>, než by zodpovedalo reálnej rýchlosti zvuku
+        pri použitej mierke. Vďaka tomu je lepšie vidieť zhustenie vĺn pred zdrojom a zriedenie za zdrojom.
       </p>
 
       <p>
@@ -249,10 +250,11 @@
       </p>
 
       <p>
-        Grafické vlnoplochy nie sú kreslené v skutočnej mierke rýchlosti zvuku. Ak by sa šírili rovnakou
-        rýchlosťou ako reálny zvuk, pri realistickej rýchlosti zdroja by rozdiel hustoty vĺn nebol na obrazovke
-        dobre viditeľný. Preto sa grafika používa ako názorné schematické znázornenie, zatiaľ čo zvuková časť
-        používa fyzikálne reálnejšie hodnoty.
+        Grafické vlnoplochy nie sú kreslené v skutočnej mierke rýchlosti zvuku. Pri použitej mierke by reálna
+        rýchlosť šírenia vĺn bola približne <strong>960 px/s</strong>, ale v applete sa vlnoplochy šíria rýchlosťou
+        <strong>320 px/s</strong>. To znamená, že sú graficky spomalené približne <strong>3-krát</strong>.
+        Ich rozostup je približne <strong>64 px</strong>, aby bolo zobrazenie prehľadné a zároveň bolo viditeľné
+        zhusťovanie a zrieďovanie vlnoplôch.
       </p>
     </div>
   </div>
@@ -269,8 +271,8 @@
 
     const PX_PER_METER = 2.8;
 
-    const VISUAL_WAVE_SPEED_PX = 180;
-    const VISUAL_WAVE_RATE = 2;
+    const VISUAL_WAVE_SPEED_PX = 320;
+    const VISUAL_WAVE_RATE = 5.0;
 
     const WAVE_EXTRA_RADIUS = 260;
     const MIN_WAVE_LIFE = 4.0;
