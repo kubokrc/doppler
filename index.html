@@ -192,7 +192,7 @@
       </p>
 
       <p>
-        Kde <strong>f<sub>0</sub></strong> je vysielaná frekvencia zdroja,
+        kde <strong>f<sub>0</sub></strong> je vysielaná frekvencia zdroja,
         <strong>f</strong> je frekvencia vnímaná poslucháčom,
         <strong>c</strong> je rýchlosť šírenia zvuku,
         <strong>v<sub>z</sub></strong> je radiálna zložka rýchlosti zdroja vzhľadom na poslucháča
@@ -208,9 +208,9 @@
       </p>
 
       <p>
-        Simulácia používa reálnu rýchlosť zvuku <strong>343 m/s</strong> a realistickejší rozsah rýchlosti zdroja
-        <strong>10 až 40 m/s</strong>. Aby bol pohyb dobre viditeľný na obrazovke, vzdialenosti sa prepočítavajú
-        pomocou grafickej mierky.
+        Zvuková časť simulácie používa reálnu rýchlosť zvuku <strong>343 m/s</strong> a realistickejší rozsah
+        rýchlosti zdroja <strong>10 až 40 m/s</strong>. Grafické vlnoplochy sú však zobrazené schematicky
+        pomalšie, aby bolo jasne vidieť ich zhustenie pred zdrojom a zriedenie za zdrojom.
       </p>
 
       <p>
@@ -242,18 +242,17 @@
 
     <div class="bottom-text">
       <p>
-        V tejto verzii simulácie je rýchlosť zvuku nastavená na <strong>343 m/s</strong>, čo približne zodpovedá
-        šíreniu zvuku vo vzduchu. Rýchlosť zdroja je možné meniť v rozsahu <strong>10 až 40 m/s</strong>,
-        teda približne <strong>36 až 144 km/h</strong>. Pohyb v grafickej časti je prepočítaný mierkou
-        <strong>2,8 px/m</strong>, aby bol na obrazovke stále dobre pozorovateľný.
+        Výpočet Dopplerovho javu v zvukovej časti používa rýchlosť zvuku <strong>343 m/s</strong>.
+        Rýchlosť zdroja je možné meniť v rozsahu <strong>10 až 40 m/s</strong>, teda približne
+        <strong>36 až 144 km/h</strong>. Pohyb zdroja na obrazovke je prepočítaný mierkou
+        <strong>2,8 px/m</strong>, aby bol dobre pozorovateľný.
       </p>
 
       <p>
-        Grafické vlnoplochy však stále nie sú úplne totožné so skutočnými zvukovými vlnami.
-        Pri zvuku <strong>200 Hz</strong> by sa v realite vytvorilo 200 vlnoplôch za sekundu, čo by bolo
-        na obrazovke neprehľadné. Preto sa v grafike zobrazuje iba zriedené schematické znázornenie vlnoplôch.
-        Zvuková časť pracuje s frekvenciami <strong>200 Hz, 800 Hz, 1500 Hz a 2000 Hz</strong>, zatiaľ čo
-        grafická časť slúži hlavne na názorné zobrazenie zhustenia a zriedenia vlnoplôch pri pohybe zdroja.
+        Grafické vlnoplochy nie sú kreslené v skutočnej mierke rýchlosti zvuku. Ak by sa šírili rovnakou
+        rýchlosťou ako reálny zvuk, pri realistickej rýchlosti zdroja by rozdiel hustoty vĺn nebol na obrazovke
+        dobre viditeľný. Preto sa grafika používa ako názorné schematické znázornenie, zatiaľ čo zvuková časť
+        používa fyzikálne reálnejšie hodnoty.
       </p>
     </div>
   </div>
@@ -267,11 +266,14 @@
     };
 
     const C = 343;
+
     const PX_PER_METER = 2.8;
 
-    const VISUAL_WAVE_RATE = 10;
+    const VISUAL_WAVE_SPEED_PX = 180;
+    const VISUAL_WAVE_RATE = 2;
+
     const WAVE_EXTRA_RADIUS = 260;
-    const MIN_WAVE_LIFE = 1.5;
+    const MIN_WAVE_LIFE = 4.0;
 
     const SINE_GAIN = 0.06;
     const NOISE_GAIN = 0.08;
@@ -337,8 +339,7 @@
     }
 
     function getWaveLifeForEmission(e) {
-      const waveSpeedPx = C * PX_PER_METER;
-      const neededLife = (getMaxDistanceToCanvasCorners(e.x0, e.y0) + WAVE_EXTRA_RADIUS) / waveSpeedPx;
+      const neededLife = (getMaxDistanceToCanvasCorners(e.x0, e.y0) + WAVE_EXTRA_RADIUS) / VISUAL_WAVE_SPEED_PX;
 
       return Math.max(MIN_WAVE_LIFE, neededLife);
     }
@@ -1019,7 +1020,7 @@
       strokeWeight(2);
 
       for (const e of emissions) {
-        const r = C * PX_PER_METER * (t - e.t0);
+        const r = VISUAL_WAVE_SPEED_PX * (t - e.t0);
         circle(e.x0, e.y0, 2 * r);
       }
 
