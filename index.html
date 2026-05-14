@@ -24,7 +24,7 @@
 
     .title {
       margin: 0 0 10px 0;
-      font-size: 26px;
+      font-size: 34px;
       font-weight: 700;
       line-height: 1.2;
     }
@@ -181,7 +181,20 @@
       <div class="formula">f = f<sub>0</sub> · c / (c − v<sub>z</sub>)</div>
 
       <p>
-        kde <strong>f<sub>0</sub></strong> je vysielaná frekvencia zdroja,
+        Rovnaký vzťah možno vyjadriť aj pomocou Dopplerovho faktora:
+      </p>
+
+      <div class="formula">D = f / f<sub>0</sub> = c / (c − v<sub>z</sub>)</div>
+
+      <p>
+        kde <strong>D</strong> je pomer frekvencie vnímanej poslucháčom a frekvencie vysielanej zdrojom.
+        Ak je <strong>D &gt; 1</strong>, poslucháč vníma vyššiu frekvenciu. Ak je <strong>D &lt; 1</strong>,
+        poslucháč vníma nižšiu frekvenciu. Tento faktor v simulácii zároveň riadi aj rýchlosť prehrávania
+        pri zvukoch, ktoré nie sú tvorené jednou sínusovou frekvenciou.
+      </p>
+
+      <p>
+        Kde <strong>f<sub>0</sub></strong> je vysielaná frekvencia zdroja,
         <strong>f</strong> je frekvencia vnímaná poslucháčom,
         <strong>c</strong> je rýchlosť šírenia zvuku,
         <strong>v<sub>z</sub></strong> je radiálna zložka rýchlosti zdroja vzhľadom na poslucháča
@@ -192,7 +205,7 @@
       <p>
         Pri sínusovom signáli sa Dopplerov jav realizuje zmenou frekvencie oscilátora.
         Pri bielom šume sa nerealizuje zmenou jednej frekvencie, ale zmenou rýchlosti prehrávania
-        pásmovo obmedzeného šumového bufferu podľa Dopplerovho faktora.
+        pásmovo obmedzeného šumového bufferu podľa Dopplerovho faktora <strong>D</strong>.
         Siréna je generovaná synteticky ako obdĺžnikový signál s periodicky meniacou sa frekvenciou.
       </p>
 
@@ -248,7 +261,9 @@
 
     const C = 140;
     const F = 2;
-    const LIFE = 6;
+
+    const MIN_WAVE_LIFE = 10;
+    const WAVE_EXTRA_RADIUS = 260;
 
     const SINE_GAIN = 0.06;
     const NOISE_GAIN = 0.08;
@@ -256,7 +271,7 @@
 
     const SIREN_CENTER_FREQ = 850;
     const SIREN_DEPTH = 350;
-    const SIREN_RATE = 0,9;
+    const SIREN_RATE = 0.9;
     const SIREN_REVERB_GAIN = 0.38;
 
     const MAX_SPEED = 100;
@@ -288,6 +303,13 @@
     let sourceX, sourceY;
 
     let lastUpdateTime = 0;
+
+    function getWaveLife() {
+      const halfDiagonal = Math.sqrt(width * width + height * height) / 2;
+      const neededLife = (halfDiagonal + WAVE_EXTRA_RADIUS) / C;
+
+      return Math.max(MIN_WAVE_LIFE, neededLife);
+    }
 
     function createReverbImpulse(durationSec = 0.65, decay = 3.2) {
       const sampleRate = audioCtx.sampleRate;
@@ -675,8 +697,6 @@
       ctx.rect(plot.plotX, plot.plotY, plot.plotW, plot.plotH);
       ctx.clip();
 
-      ctx.noFill;
-
       ctx.strokeStyle = '#ffffff';
       ctx.lineWidth = 1.4 * dpr;
       ctx.beginPath();
@@ -922,7 +942,9 @@
         lastEmit = t;
       }
 
-      emissions = emissions.filter(e => t - e.t0 <= LIFE);
+      const waveLife = getWaveLife();
+
+      emissions = emissions.filter(e => t - e.t0 <= waveLife);
 
       const lineLen = map(params.speed, 50, 100, 120, 260);
       const x2 = sourceX + dirX * lineLen;
