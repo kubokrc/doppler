@@ -185,26 +185,13 @@
       <div class="formula">D = f / f<sub>0</sub> = c / (c − v<sub>z</sub>)</div>
 
       <p>
-        kde <strong>D</strong> je pomer frekvencie vnímanej poslucháčom a frekvencie vysielanej zdrojom.
+        kde <strong>D</strong> je pomer frekvencie vnímanej poslucháčom a frekvencie vysielanej zdrojom, <strong>f<sub>0</sub></strong> je vysielaná frekvencia zdroja,
+        <strong>f</strong> je frekvencia vnímaná poslucháčom, <strong>c</strong> je rýchlosť šírenia zvuku,
+        <strong>v<sub>z</sub></strong> je radiálna zložka rýchlosti zdroja vzhľadom na poslucháča
+        a <strong>v<sub>p</sub></strong> je rýchlosť poslucháča.
         Ak je <strong>D &gt; 1</strong>, poslucháč vníma vyššiu frekvenciu. Ak je <strong>D &lt; 1</strong>,
         poslucháč vníma nižšiu frekvenciu. Dopplerov faktor zároveň určuje, ako veľmi sa má meniť prehrávanie
         alebo frekvencia zvukového signálu.
-      </p>
-
-      <p>
-        kde <strong>f<sub>0</sub></strong> je vysielaná frekvencia zdroja,
-        <strong>f</strong> je frekvencia vnímaná poslucháčom,
-        <strong>c</strong> je rýchlosť šírenia zvuku,
-        <strong>v<sub>z</sub></strong> je radiálna zložka rýchlosti zdroja vzhľadom na poslucháča
-        a <strong>v<sub>p</sub></strong> je rýchlosť poslucháča. V tomto applete je poslucháč nehybný,
-        teda <strong>v<sub>p</sub> = 0</strong>.
-      </p>
-
-      <p>
-        Pri sínusovom signáli sa Dopplerov jav realizuje zmenou frekvencie oscilátora.
-        Pri bielom šume sa nerealizuje zmenou jednej frekvencie, ale zmenou rýchlosti prehrávania
-        pásmovo obmedzeného šumového bufferu podľa Dopplerovho faktora <strong>D</strong>.
-        Siréna je generovaná synteticky ako obdĺžnikový signál s periodicky meniacou sa frekvenciou.
       </p>
 
       <p>
@@ -240,23 +227,6 @@
 
       <div id="sketch"></div>
     </div>
-
-    <div class="bottom-text">
-      <p>
-        Výpočet Dopplerovho javu v zvukovej časti používa rýchlosť zvuku <strong>343 m/s</strong>.
-        Rýchlosť zdroja je možné meniť v rozsahu <strong>10 až 40 m/s</strong>, teda približne
-        <strong>36 až 144 km/h</strong>. Pohyb zdroja na obrazovke je prepočítaný mierkou
-        <strong>2,8 px/m</strong>, aby bol dobre pozorovateľný.
-      </p>
-
-      <p>
-        Grafické vlnoplochy nie sú kreslené v skutočnej mierke rýchlosti zvuku. Pri použitej mierke by reálna
-        rýchlosť šírenia vĺn bola približne <strong>960 px/s</strong>, ale v applete sa vlnoplochy šíria rýchlosťou
-        <strong>320 px/s</strong>. To znamená, že sú graficky spomalené približne <strong>3-krát</strong>.
-        Ich rozostup je približne <strong>64 px</strong>, aby bolo zobrazenie prehľadné a zároveň bolo viditeľné
-        zhusťovanie a zrieďovanie vlnoplôch.
-      </p>
-    </div>
   </div>
 
   <script>
@@ -271,7 +241,7 @@
 
     const PX_PER_METER = 2.8;
 
-    const VISUAL_WAVE_SPEED_PX = 320;
+    const VISUAL_WAVE_SPEED_PX = 240;
     const VISUAL_WAVE_RATE = 5.0;
 
     const WAVE_EXTRA_RADIUS = 260;
