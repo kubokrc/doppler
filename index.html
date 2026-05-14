@@ -180,36 +180,37 @@
 
       <div class="formula">f = f<sub>0</sub> · c / (c − v<sub>z</sub>)</div>
 
-      <p>Rovnaký vzťah možno vyjadriť aj pomocou Dopplerovho faktora:</p>
+      <p>
+        Rovnaký vzťah možno vyjadriť aj pomocou Dopplerovho faktora <strong>D</strong> (inými slovami pomer frekvencií zdroja a poslucháča) :
+      </p>
 
       <div class="formula">D = f / f<sub>0</sub> = c / (c − v<sub>z</sub>)</div>
 
       <p>
-        kde <strong>D</strong> je pomer frekvencie vnímanej poslucháčom a frekvencie vysielanej zdrojom, <strong>f<sub>0</sub></strong> je vysielaná frekvencia zdroja,
-        <strong>f</strong> je frekvencia vnímaná poslucháčom, <strong>c</strong> je rýchlosť šírenia zvuku,
+        kde <strong>f</strong> je frekvencia vnímaná poslucháčom, <strong>c</strong> je rýchlosť šírenia zvuku,
         <strong>v<sub>z</sub></strong> je radiálna zložka rýchlosti zdroja vzhľadom na poslucháča
         a <strong>v<sub>p</sub></strong> je rýchlosť poslucháča.
-        Ak je <strong>D &gt; 1</strong>, poslucháč vníma vyššiu frekvenciu. Ak je <strong>D &lt; 1</strong>,
-        poslucháč vníma nižšiu frekvenciu. Dopplerov faktor zároveň určuje, ako veľmi sa má meniť prehrávanie
-        alebo frekvencia zvukového signálu.
+        Ak je <strong>D &gt; 1</strong>, poslucháč vníma vyššiu frekvenciu (zdroj sa približuje). Ak je <strong>D &lt; 1</strong>,
+        poslucháč vníma nižšiu frekvenciu (zdroj sa vzďaľuje). Simulácia funguje na princípe, kedy Dopplerov faktor <strong>D</strong> násobi 
+        rýchlosť prehrávania daného zvuku, čoho výsledok je zmena frekvencie, ktorú počujeme. Pri šume, vzhľadom na chýbajúce harmonické zložky, sa 
+        pohybom zdroja mení iba farba zvuku - pri približovaní sú vyššie frekvencie výraznejšie a pri vzďaľovaní naopak stlmené. 
       </p>
 
       <p>
-        Zvuková časť simulácie používa reálnu rýchlosť zvuku <strong>343 m/s</strong> a realistickejší rozsah
-        rýchlosti zdroja <strong>10 až 40 m/s</strong>. Grafické vlnoplochy sú však zobrazené schematicky:
-        šíria sa približne <strong>3-krát pomalšie</strong>, než by zodpovedalo reálnej rýchlosti zvuku
-        pri použitej mierke. Vďaka tomu je lepšie vidieť zhustenie vĺn pred zdrojom a zriedenie za zdrojom.
+        Zvuková časť simulácie prislúcha realite, grafické zobrazenie vlnoplôch je však skreslené kvôli prehľadnosti. 
+        Rozostup medzi vlnoplochami je v realite značne menší a rýchlosť ich šírenia je oveľa vyššia (konkrétne 4x).  
+      </p>
+
+      <div class="formula">Návod:</div>
+      
+      <p>
+        V ovládacom paneli na ľavej strane zvolte rýchlosť zdroja a smer jeho pohybu (uhol), vyberte zvuk a tlačidlom Štart spustite simuláciu.
       </p>
 
       <p>
-        Vlnoplochy sa zobrazujú hneď po otvorení stránky. Tlačidlom <strong>Štart</strong>
-        spustíte pohyb zdroja a zvuk.
-      </p>
-
-      <p>
-        <strong>Poznámka:</strong> Pri uhle 0° je zmena frekvencie najvýraznejšia, pretože zdroj smeruje priamo
-        k poslucháčovi alebo od neho. V reálnej situácii by však zdroj zvyčajne neprechádzal priamo cez polohu
-        poslucháča, ale popri ňom.
+        <strong>Poznámka:</strong> Pri uhle 0° je zmena frekvencie skoková a môže pôsobiť neprirodzene,
+        ide však o fyzikálne správny jav. V skutočnosti je to ťažko realizovateľný prípad, pretože zdroj zvuku
+        by musel prechádzať v jednej priamke priamo cez poslucháča.
       </p>
     </div>
 
