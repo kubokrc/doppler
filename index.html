@@ -180,17 +180,15 @@
 
       <div class="formula">f = f<sub>0</sub> · c / (c − v<sub>z</sub>)</div>
 
-      <p>
-        Rovnaký vzťah možno vyjadriť aj pomocou Dopplerovho faktora:
-      </p>
+      <p>Rovnaký vzťah možno vyjadriť aj pomocou Dopplerovho faktora:</p>
 
       <div class="formula">D = f / f<sub>0</sub> = c / (c − v<sub>z</sub>)</div>
 
       <p>
         kde <strong>D</strong> je pomer frekvencie vnímanej poslucháčom a frekvencie vysielanej zdrojom.
         Ak je <strong>D &gt; 1</strong>, poslucháč vníma vyššiu frekvenciu. Ak je <strong>D &lt; 1</strong>,
-        poslucháč vníma nižšiu frekvenciu. Tento faktor v simulácii zároveň riadi aj rýchlosť prehrávania
-        pri zvukoch, ktoré nie sú tvorené jednou sínusovou frekvenciou.
+        poslucháč vníma nižšiu frekvenciu. Dopplerov faktor zároveň určuje, ako veľmi sa má meniť prehrávanie
+        alebo frekvencia zvukového signálu.
       </p>
 
       <p>
@@ -210,14 +208,20 @@
       </p>
 
       <p>
+        Simulácia používa reálnu rýchlosť zvuku <strong>343 m/s</strong> a realistickejší rozsah rýchlosti zdroja
+        <strong>10 až 40 m/s</strong>. Aby bol pohyb dobre viditeľný na obrazovke, vzdialenosti sa prepočítavajú
+        pomocou grafickej mierky.
+      </p>
+
+      <p>
         Vlnoplochy sa zobrazujú hneď po otvorení stránky. Tlačidlom <strong>Štart</strong>
         spustíte pohyb zdroja a zvuk.
       </p>
 
       <p>
-        <strong>Poznámka:</strong> Pri uhle 0° je zmena frekvencie veľmi prudká a môže pôsobiť neprirodzene,
-        ide však o fyzikálne správny jav. V skutočnosti je to ťažko realizovateľný prípad, pretože zdroj zvuku
-        by musel prechádzať priamo cez poslucháča.
+        <strong>Poznámka:</strong> Pri uhle 0° je zmena frekvencie najvýraznejšia, pretože zdroj smeruje priamo
+        k poslucháčovi alebo od neho. V reálnej situácii by však zdroj zvyčajne neprechádzal priamo cez polohu
+        poslucháča, ale popri ňom.
       </p>
     </div>
 
@@ -238,15 +242,18 @@
 
     <div class="bottom-text">
       <p>
-        Simulácia používa upravené veličiny tak, aby bol Dopplerov jav dobre viditeľný aj počuteľný.
-        Rýchlosť šírenia vĺn je nastavená na <strong>140 m/s</strong>, zatiaľ čo v realite je rýchlosť zvuku
-        vo vzduchu približne <strong>340 m/s</strong>. Aj rýchlosti zdroja použité v simulácii sú pre bežné
-        situácie nerealisticky vysoké, aby bola zmena frekvencie výraznejšia. Graficky sa vlnoplochy emitujú
-        s frekvenciou <strong>2 Hz</strong>, preto je ich rozostup, teda vlnová dĺžka, v simulácii až
-        <strong>70 m</strong>, kým v realite by pri zvuku <strong>200 Hz</strong> bola približne
-        <strong>1,7 m</strong>. Zvuková časť preto pracuje s realistickejšími frekvenciami
-        <strong>200 Hz, 800 Hz, 1500 Hz a 2000 Hz</strong>, zatiaľ čo grafická časť je zámerne schematická.
-        Simulácia teda zachováva správny princíp javu, ale používa zjednodušenú mierku pre lepšiu názornosť.
+        V tejto verzii simulácie je rýchlosť zvuku nastavená na <strong>343 m/s</strong>, čo približne zodpovedá
+        šíreniu zvuku vo vzduchu. Rýchlosť zdroja je možné meniť v rozsahu <strong>10 až 40 m/s</strong>,
+        teda približne <strong>36 až 144 km/h</strong>. Pohyb v grafickej časti je prepočítaný mierkou
+        <strong>2,8 px/m</strong>, aby bol na obrazovke stále dobre pozorovateľný.
+      </p>
+
+      <p>
+        Grafické vlnoplochy však stále nie sú úplne totožné so skutočnými zvukovými vlnami.
+        Pri zvuku <strong>200 Hz</strong> by sa v realite vytvorilo 200 vlnoplôch za sekundu, čo by bolo
+        na obrazovke neprehľadné. Preto sa v grafike zobrazuje iba zriedené schematické znázornenie vlnoplôch.
+        Zvuková časť pracuje s frekvenciami <strong>200 Hz, 800 Hz, 1500 Hz a 2000 Hz</strong>, zatiaľ čo
+        grafická časť slúži hlavne na názorné zobrazenie zhustenia a zriedenia vlnoplôch pri pohybe zdroja.
       </p>
     </div>
   </div>
@@ -254,16 +261,17 @@
   <script>
     const params = {
       angleDeg: 5,
-      speed: 70,
+      speed: 25,
       running: false,
       soundType: 'sine200'
     };
 
-    const C = 140;
-    const F = 2;
+    const C = 343;
+    const PX_PER_METER = 2.8;
 
-    const MIN_WAVE_LIFE = 10;
+    const VISUAL_WAVE_RATE = 10;
     const WAVE_EXTRA_RADIUS = 260;
+    const MIN_WAVE_LIFE = 1.5;
 
     const SINE_GAIN = 0.06;
     const NOISE_GAIN = 0.08;
@@ -274,7 +282,8 @@
     const SIREN_RATE = 0.9;
     const SIREN_REVERB_GAIN = 0.38;
 
-    const MAX_SPEED = 100;
+    const MIN_SPEED = 10;
+    const MAX_SPEED = 40;
 
     const MIN_DOPPLER = C / (C + MAX_SPEED);
     const MAX_DOPPLER = C / (C - MAX_SPEED);
@@ -304,9 +313,32 @@
 
     let lastUpdateTime = 0;
 
-    function getWaveLife() {
-      const halfDiagonal = Math.sqrt(width * width + height * height) / 2;
-      const neededLife = (halfDiagonal + WAVE_EXTRA_RADIUS) / C;
+    function getMaxDistanceToCanvasCorners(x, y) {
+      const corners = [
+        { x: -width / 2, y: -height / 2 },
+        { x: width / 2, y: -height / 2 },
+        { x: -width / 2, y: height / 2 },
+        { x: width / 2, y: height / 2 }
+      ];
+
+      let maxDist = 0;
+
+      for (const c of corners) {
+        const dx = c.x - x;
+        const dy = c.y - y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist > maxDist) {
+          maxDist = dist;
+        }
+      }
+
+      return maxDist;
+    }
+
+    function getWaveLifeForEmission(e) {
+      const waveSpeedPx = C * PX_PER_METER;
+      const neededLife = (getMaxDistanceToCanvasCorners(e.x0, e.y0) + WAVE_EXTRA_RADIUS) / waveSpeedPx;
 
       return Math.max(MIN_WAVE_LIFE, neededLife);
     }
@@ -840,9 +872,9 @@
 
       pane.addInput(params, 'speed', {
         label: 'Rýchlosť (m/s)',
-        min: 50,
-        max: 100,
-        step: 5
+        min: MIN_SPEED,
+        max: MAX_SPEED,
+        step: 1
       }).on('change', () => {
         updateFrequencyInfo();
       });
@@ -920,13 +952,13 @@
 
       lastUpdateTime = now;
 
-      const T = 1 / F;
+      const T = 1 / VISUAL_WAVE_RATE;
 
       const { dirX, dirY, vX, vY } = getVelocityComponents();
 
       if (params.running) {
-        sourceX += vX * dt;
-        sourceY += vY * dt;
+        sourceX += vX * PX_PER_METER * dt;
+        sourceY += vY * PX_PER_METER * dt;
       } else {
         sourceX = sourceStartX;
         sourceY = sourceStartY;
@@ -942,11 +974,14 @@
         lastEmit = t;
       }
 
-      const waveLife = getWaveLife();
+      emissions = emissions.filter(e => {
+        const age = t - e.t0;
+        const waveLife = getWaveLifeForEmission(e);
 
-      emissions = emissions.filter(e => t - e.t0 <= waveLife);
+        return age <= waveLife;
+      });
 
-      const lineLen = map(params.speed, 50, 100, 120, 260);
+      const lineLen = map(params.speed, MIN_SPEED, MAX_SPEED, 120, 260);
       const x2 = sourceX + dirX * lineLen;
       const y2 = sourceY + dirY * lineLen;
 
@@ -984,7 +1019,7 @@
       strokeWeight(2);
 
       for (const e of emissions) {
-        const r = C * (t - e.t0);
+        const r = C * PX_PER_METER * (t - e.t0);
         circle(e.x0, e.y0, 2 * r);
       }
 
